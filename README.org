@@ -1,0 +1,16 @@
+* Wally's File Sharing Platform
+** Build and Run
+*** Prerequisite
+    - Install Rust: https://www.rust-lang.org/tools/install
+    - Cargo is required, it should be installed along with Rust
+    - When building with Cargo, it would automatically download dependencies
+*** WA-FSP lib
+    - Under root directory ~cargo test~ can execute unit test
+*** Server Program
+    - Under ~server~ directory execute ~cargo run~
+    - This crate contains the server program designed to be executed in a known-ip server
+    - Once started, the server program does not need any interaction
+*** Client Program
+    - Under ~client~ directory execute ~cargo run~
+    - This crate contains the client's binary
+    - The server's IP address can be set in ~config.yaml~ under ~client~ directory
