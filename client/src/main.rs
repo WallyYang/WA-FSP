@@ -3,9 +3,11 @@ use std::fs;
 use std::io::Read;
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
-use std::{io, str};
+use std::str;
+use std::thread;
 
-use client::Server;
+use client::*;
+use wa_fsp::*;
 
 struct FspClient {
     socket: UdpSocket,
@@ -41,25 +43,37 @@ impl FspClient {
             println!("{}", content);
         }
 
-        loop {
-            let mut input = String::new();
-            let mut buffer = [0u8; 1500];
-            io::stdin()
-                .read_line(&mut input)
-                .expect("Failed to read from stdin");
-            self.socket
-                .send(input.as_bytes())
-                .expect("Failed to write to server");
+        self.send_reg();
 
-            self.socket
-                .recv_from(&mut buffer)
-                .expect("Could not read into buffer");
-            print!(
-                "{}",
-                str::from_utf8(&buffer)
-                    .expect("Could not write buffer as string")
-            );
-        }
+        // create a separate thread listening to incomming messages
+        let mut buffer: Vec<u8> = Vec::new();
+        buffer.resize(BUF_SIZE, 0);
+        let c_socket = self.socket.try_clone().unwrap();
+        thread::spawn(move || loop {
+            if let Ok(_) = c_socket.recv_from(&mut buffer) {}
+        });
+
+        loop {}
+    }
+
+    fn send_reg(&self) {
+        let filenames = self
+            .files
+            .keys()
+            .map(|k| k.clone())
+            .collect::<Vec<String>>();
+
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::Register,
+            content: serde_json::to_string(&filenames).unwrap(),
+        })
+        .unwrap();
+
+        println!("{:?}", msg);
+
+        self.socket
+            .send(msg.as_bytes())
+            .expect("Could not send to server");
     }
 }
 

@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use std::str;
 use std::thread;
 
 fn main() {
@@ -11,6 +12,7 @@ fn main() {
             Ok((_, src)) => {
                 thread::spawn(move || {
                     println!("Handling connection from {}", src);
+                    println!("{:?}", str::from_utf8(&buf));
                     sock.send_to(&buf, src).expect("Failed to send a response");
                 });
             }
