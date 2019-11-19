@@ -81,6 +81,5 @@ fn main() {
     // create client with server config and files
     let mut client = FspClient::new();
 
-    // create UDP socket and connect to server
     client.run();
 }
