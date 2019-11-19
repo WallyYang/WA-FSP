@@ -4,7 +4,7 @@ use std::io::Read;
 use std::io::{self, Write};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
-use std::str;
+use std::str::{self, FromStr};
 use std::thread;
 
 use client::*;
@@ -84,6 +84,8 @@ impl FspClient {
             if msg.len() > 0 {
                 if msg == ":l" {
                     self.req_list();
+                } else {
+                    self.req_file(&String::from_str(msg).unwrap());
                 }
             }
         }
@@ -111,6 +113,24 @@ impl FspClient {
         let msg = serde_json::to_string(&Message {
             msg_type: MsgType::List,
             content: String::new(),
+        })
+        .unwrap();
+
+        self.socket
+            .send(msg.as_bytes())
+            .expect("Could not send to server");
+    }
+
+    fn req_file(&self, filename: &String) {
+        if self.files.contains_key(filename) {
+            println!("File already exists locally!");
+            return;
+        }
+
+        println!("Requesting file");
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::FileReq,
+            content: filename.clone(),
         })
         .unwrap();
 
