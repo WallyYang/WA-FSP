@@ -1,7 +1,7 @@
 extern crate serde;
 use serde::{Deserialize, Serialize};
 
-pub const BUF_SIZE: usize = 1500;
+pub const BUF_SIZE: usize = 64 * 1024; // max UDP packet size
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
