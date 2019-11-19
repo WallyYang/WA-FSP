@@ -14,3 +14,4 @@
     - Under ~client~ directory execute ~cargo run~
     - This crate contains the client's binary
     - The server's IP address can be set in ~config.yaml~ under ~client~ directory
+    - Shared files are stored under ~files/~
