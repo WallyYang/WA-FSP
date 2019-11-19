@@ -47,6 +47,7 @@ impl FspServer {
                     eprintln!("Couldn't receive a datagram: {}", e);
                 }
             }
+            println!("{:?}", self.files);
 
             buffer.clear();
             buffer.resize(BUF_SIZE, 0);

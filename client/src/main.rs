@@ -11,6 +11,7 @@ use wa_fsp::*;
 
 struct FspClient {
     socket: UdpSocket,
+    server: SocketAddr,
     files: HashMap<String, fs::File>,
 }
 
@@ -26,23 +27,19 @@ impl FspClient {
         }
 
         let server = Server::from_file("config.yaml");
+        let server = SocketAddr::new(server.address, server.port);
         let socket =
             UdpSocket::bind("0.0.0.0:0").expect("Could not bind client socket");
-        socket
-            .connect(SocketAddr::new(server.address, server.port))
-            .expect("Could not connect to server");
 
-        FspClient { socket, files }
+        FspClient {
+            socket,
+            server,
+            files,
+        }
     }
 
     fn run(&mut self) {
-        for mut file in &self.files {
-            println!("{}", file.0);
-            let mut content = String::new();
-            file.1.read_to_string(&mut content).unwrap();
-            println!("{}", content);
-        }
-
+        // register files with server
         self.send_reg();
 
         // create a separate thread listening to incomming messages
@@ -56,6 +53,7 @@ impl FspClient {
                 )
                 .expect("Error parsing message");
 
+                println!("{:?}", msg);
                 match msg.msg_type {
                     MsgType::List => {
                         println!("Files registered with the server: ");
@@ -87,7 +85,6 @@ impl FspClient {
             }
         });
 
-        println!("main loop");
         loop {
             print!("> ");
             io::stdout().flush().unwrap();
@@ -120,7 +117,7 @@ impl FspClient {
         .unwrap();
 
         self.socket
-            .send(msg.as_bytes())
+            .send_to(msg.as_bytes(), self.server)
             .expect("Could not send to server");
     }
 
@@ -132,7 +129,7 @@ impl FspClient {
         .unwrap();
 
         self.socket
-            .send(msg.as_bytes())
+            .send_to(msg.as_bytes(), self.server)
             .expect("Could not send to server");
     }
 
@@ -150,7 +147,7 @@ impl FspClient {
         .unwrap();
 
         self.socket
-            .send(msg.as_bytes())
+            .send_to(msg.as_bytes(), self.server)
             .expect("Could not send to server");
     }
 
