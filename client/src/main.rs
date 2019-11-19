@@ -208,6 +208,8 @@ impl FspClient {
             File::create(Path::new(&path)).expect("Unable to create file");
         file.write_all(content.as_bytes())
             .expect("Unable to write to files");
+
+        println!("Files successfuly transmitted");
     }
 }
 
