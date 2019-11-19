@@ -14,6 +14,7 @@ pub enum MsgType {
     Register,
     List,
     FileReq,
+    FileResp,
     FileTrans,
 }
 

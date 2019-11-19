@@ -35,6 +35,7 @@ impl FspServer {
                     match msg.msg_type {
                         MsgType::Register => self.register(src, &msg),
                         MsgType::List => self.list(src),
+                        MsgType::FileReq => self.resp_file(&msg.content, src),
                         _ => {}
                     }
 
@@ -91,6 +92,25 @@ impl FspServer {
             .send_to(&msg.as_bytes(), socket_addr)
             .expect("Cannot sent to client");
         println!("{} bytes written", bytes_write);
+    }
+
+    fn resp_file(&self, filename: &String, socket_addr: SocketAddr) {
+        println!("Response to file request for {}", filename);
+
+        let clients = match self.files.get(filename) {
+            Some(clients) => clients.clone(),
+            None => HashSet::new(),
+        };
+
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::FileResp,
+            content: serde_json::to_string(&(filename, clients)).unwrap(),
+        })
+        .unwrap();
+
+        self.socket
+            .send_to(msg.as_bytes(), socket_addr)
+            .expect("Cannot send to client");
     }
 }
 

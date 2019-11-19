@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::io::{self, Write};
@@ -66,6 +66,10 @@ impl FspClient {
                         for filename in filenames {
                             println!("{}", filename);
                         }
+                    }
+                    MsgType::FileResp => {
+                        println!("Received list from the server: ");
+                        FspClient::handle_file_resp(&c_socket, &msg);
                     }
                     _ => {}
                 }
@@ -137,6 +141,33 @@ impl FspClient {
         self.socket
             .send(msg.as_bytes())
             .expect("Could not send to server");
+    }
+
+    fn handle_file_resp(socket: &UdpSocket, msg: &Message) {
+        let (filename, clients): (String, HashSet<SocketAddr>) =
+            serde_json::from_str(&msg.content)
+                .expect("Cannot parse server response");
+
+        if clients.is_empty() {
+            println!("File not found!");
+            return;
+        }
+
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::FileReq,
+            content: filename,
+        })
+        .unwrap();
+
+        for client in clients {
+            match socket.send_to(msg.as_bytes(), client) {
+                Ok(_) => {
+                    println!("Sending request to {}", client);
+                    break;
+                }
+                Err(_) => {}
+            }
+        }
     }
 }
 
