@@ -97,6 +97,16 @@ impl FspClient {
                     self.req_list();
                 } else {
                     self.req_file(&String::from_str(msg).unwrap());
+
+                    // update file entries and send to server
+                    for entry in fs::read_dir(Path::new("./files/")).unwrap() {
+                        let entry = entry.unwrap();
+                        self.files.insert(
+                            entry.file_name().into_string().unwrap(),
+                            fs::File::open(entry.path()).unwrap(),
+                        );
+                    }
+                    self.send_reg();
                 }
             }
         }
