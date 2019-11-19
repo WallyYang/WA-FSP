@@ -13,7 +13,8 @@ pub struct Message {
 pub enum MsgType {
     Register,
     List,
-    File,
+    FileReq,
+    FileTrans,
 }
 
 #[cfg(test)]

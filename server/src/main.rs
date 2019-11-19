@@ -35,7 +35,7 @@ impl FspServer {
                     match msg.msg_type {
                         MsgType::Register => self.register(src, &msg),
                         MsgType::List => self.list(src),
-                        MsgType::File => {}
+                        _ => {}
                     }
 
                     // thread::spawn(move || {
