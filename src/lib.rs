@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub const BUF_SIZE: usize = 64 * 1024 * 1024;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub msg_type: MsgType,
     pub content: String,
