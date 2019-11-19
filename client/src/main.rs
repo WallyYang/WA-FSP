@@ -1,9 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
 use std::str::{self, FromStr};
+use std::sync::mpsc;
 use std::thread;
 
 use client::*;
@@ -12,18 +13,16 @@ use wa_fsp::*;
 struct FspClient {
     socket: UdpSocket,
     server: SocketAddr,
-    files: HashMap<String, fs::File>,
+    // files: HashMap<String, fs::File>,
+    files: HashSet<String>,
 }
 
 impl FspClient {
     fn new() -> FspClient {
-        let mut files = HashMap::new();
+        let mut files = HashSet::new();
         for entry in fs::read_dir(Path::new("./files/")).unwrap() {
             let entry = entry.unwrap();
-            files.insert(
-                entry.file_name().into_string().unwrap(),
-                fs::File::open(entry.path()).unwrap(),
-            );
+            files.insert(entry.file_name().into_string().unwrap());
         }
 
         let server = Server::from_file("config.yaml");
@@ -41,6 +40,8 @@ impl FspClient {
     fn run(&mut self) {
         // register files with server
         self.send_reg();
+
+        let (tx, rx) = mpsc::channel();
 
         // create a separate thread listening to incomming messages
         let mut buffer: Vec<u8> = Vec::new();
@@ -65,7 +66,9 @@ impl FspClient {
                     }
                     MsgType::FileResp => {
                         println!("\nReceived list from the server");
-                        FspClient::handle_file_resp(&c_socket, &msg);
+                        if !FspClient::handle_file_resp(&c_socket, &msg) {
+                            tx.send(String::new()).unwrap();
+                        }
                     }
                     MsgType::FileReq => {
                         println!("\nProcessing request from peer");
@@ -77,7 +80,8 @@ impl FspClient {
                     }
                     MsgType::FileTrans => {
                         println!("\nProcessing file transmission");
-                        FspClient::handle_file_trans(&msg);
+                        let filename = FspClient::handle_file_trans(&msg);
+                        tx.send(filename).unwrap()
                     }
                     _ => {}
                 }
@@ -96,32 +100,28 @@ impl FspClient {
                 if msg == ":l" {
                     self.req_list();
                 } else {
-                    self.req_file(&String::from_str(msg).unwrap());
-
-                    // update file entries and send to server
-                    for entry in fs::read_dir(Path::new("./files/")).unwrap() {
-                        let entry = entry.unwrap();
-                        self.files.insert(
-                            entry.file_name().into_string().unwrap(),
-                            fs::File::open(entry.path()).unwrap(),
-                        );
+                    if self.req_file(&String::from_str(msg).unwrap()) {
+                        let filename = rx.recv().unwrap();
+                        if filename.len() > 0 {
+                            self.files.insert(filename);
+                            self.send_reg();
+                        }
                     }
-                    self.send_reg();
                 }
             }
         }
     }
 
     fn send_reg(&self) {
-        let filenames = self
-            .files
-            .keys()
-            .map(|k| k.clone())
-            .collect::<Vec<String>>();
+        // let filenames = self
+        //     .files
+        //     // .keys()
+        //     // .map(|k| k.clone())
+        //     .collect::<Vec<String>>();
 
         let msg = serde_json::to_string(&Message {
             msg_type: MsgType::Register,
-            content: serde_json::to_string(&filenames).unwrap(),
+            content: serde_json::to_string(&self.files).unwrap(),
         })
         .unwrap();
 
@@ -142,10 +142,10 @@ impl FspClient {
             .expect("Could not send to server");
     }
 
-    fn req_file(&self, filename: &String) {
-        if self.files.contains_key(filename) {
+    fn req_file(&self, filename: &String) -> bool {
+        if self.files.contains(filename) {
             println!("File already exists locally!");
-            return;
+            return false;
         }
 
         println!("Requesting file");
@@ -158,16 +158,18 @@ impl FspClient {
         self.socket
             .send_to(msg.as_bytes(), self.server)
             .expect("Could not send to server");
+
+        true
     }
 
-    fn handle_file_resp(socket: &UdpSocket, msg: &Message) {
+    fn handle_file_resp(socket: &UdpSocket, msg: &Message) -> bool {
         let (filename, clients): (String, HashSet<SocketAddr>) =
             serde_json::from_str(&msg.content)
                 .expect("Cannot parse server response");
 
         if clients.is_empty() {
             println!("File not found!");
-            return;
+            return false;
         }
 
         let msg = serde_json::to_string(&Message {
@@ -180,11 +182,12 @@ impl FspClient {
             match socket.send_to(msg.as_bytes(), client) {
                 Ok(_) => {
                     println!("Sending request to {}", client);
-                    break;
+                    return true;
                 }
                 Err(_) => {}
             }
         }
+        false
     }
 
     fn handle_file_req(socket: &UdpSocket, filename: &String, src: SocketAddr) {
@@ -208,7 +211,7 @@ impl FspClient {
             .expect("Unable to send to requesting client");
     }
 
-    fn handle_file_trans(msg: &Message) {
+    fn handle_file_trans(msg: &Message) -> String {
         let (filename, content): (String, String) =
             serde_json::from_str(&msg.content)
                 .expect("Unable to parse file transmission");
@@ -220,6 +223,7 @@ impl FspClient {
             .expect("Unable to write to files");
 
         println!("Files successfuly transmitted");
+        filename
     }
 }
 
