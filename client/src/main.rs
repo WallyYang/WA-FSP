@@ -53,7 +53,6 @@ impl FspClient {
                 )
                 .expect("Error parsing message");
 
-                println!("{:?}", msg);
                 match msg.msg_type {
                     MsgType::List => {
                         println!("Files registered with the server: ");
@@ -65,11 +64,11 @@ impl FspClient {
                         }
                     }
                     MsgType::FileResp => {
-                        println!("Received list from the server: ");
+                        println!("\nReceived list from the server");
                         FspClient::handle_file_resp(&c_socket, &msg);
                     }
                     MsgType::FileReq => {
-                        println!("Processing request from peer: ");
+                        println!("\nProcessing request from peer");
                         FspClient::handle_file_req(
                             &c_socket,
                             &msg.content,
@@ -77,7 +76,7 @@ impl FspClient {
                         );
                     }
                     MsgType::FileTrans => {
-                        println!("Processing file transmission: ");
+                        println!("\nProcessing file transmission");
                         FspClient::handle_file_trans(&msg);
                     }
                     _ => {}
