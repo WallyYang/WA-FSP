@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::io::Read;
-use std::io::{self, Write};
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
 use std::str::{self, FromStr};
@@ -27,8 +26,8 @@ impl FspClient {
         }
 
         let server = Server::from_file("config.yaml");
-        let socket = UdpSocket::bind("0.0.0.0:1234")
-            .expect("Could not bind client socket");
+        let socket =
+            UdpSocket::bind("0.0.0.0:0").expect("Could not bind client socket");
         socket
             .connect(SocketAddr::new(server.address, server.port))
             .expect("Could not connect to server");
@@ -51,7 +50,7 @@ impl FspClient {
         buffer.resize(BUF_SIZE, 0);
         let c_socket = self.socket.try_clone().unwrap();
         thread::spawn(move || loop {
-            if let Ok((bytes_read, _)) = c_socket.recv_from(&mut buffer) {
+            if let Ok((bytes_read, src)) = c_socket.recv_from(&mut buffer) {
                 let msg: Message = serde_json::from_str(
                     str::from_utf8(&buffer[..bytes_read]).unwrap(),
                 )
@@ -70,6 +69,18 @@ impl FspClient {
                     MsgType::FileResp => {
                         println!("Received list from the server: ");
                         FspClient::handle_file_resp(&c_socket, &msg);
+                    }
+                    MsgType::FileReq => {
+                        println!("Processing request from peer: ");
+                        FspClient::handle_file_req(
+                            &c_socket,
+                            &msg.content,
+                            src,
+                        );
+                    }
+                    MsgType::FileTrans => {
+                        println!("Processing file transmission: ");
+                        FspClient::handle_file_trans(&msg);
                     }
                     _ => {}
                 }
@@ -168,6 +179,39 @@ impl FspClient {
                 Err(_) => {}
             }
         }
+    }
+
+    fn handle_file_req(socket: &UdpSocket, filename: &String, src: SocketAddr) {
+        let path = format!("{}{}", "./files/", filename);
+        let path = Path::new(&path);
+
+        let mut file = File::open(path).expect("Unable to open file");
+
+        let mut buffer = String::new();
+        file.read_to_string(&mut buffer).unwrap();
+
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::FileTrans,
+            content: serde_json::to_string(&(filename.clone(), buffer))
+                .unwrap(),
+        })
+        .unwrap();
+
+        socket
+            .send_to(msg.as_bytes(), src)
+            .expect("Unable to send to requesting client");
+    }
+
+    fn handle_file_trans(msg: &Message) {
+        let (filename, content): (String, String) =
+            serde_json::from_str(&msg.content)
+                .expect("Unable to parse file transmission");
+        let path = format!("{}{}", "./files/", filename);
+
+        let mut file =
+            File::create(Path::new(&path)).expect("Unable to create file");
+        file.write_all(content.as_bytes())
+            .expect("Unable to write to files");
     }
 }
 
