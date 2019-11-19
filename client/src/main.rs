@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
+use std::io::{self, Write};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
 use std::str;
@@ -26,7 +27,7 @@ impl FspClient {
         }
 
         let server = Server::from_file("config.yaml");
-        let socket = UdpSocket::bind("127.0.0.1:8000")
+        let socket = UdpSocket::bind("0.0.0.0:1234")
             .expect("Could not bind client socket");
         socket
             .connect(SocketAddr::new(server.address, server.port))
@@ -50,10 +51,42 @@ impl FspClient {
         buffer.resize(BUF_SIZE, 0);
         let c_socket = self.socket.try_clone().unwrap();
         thread::spawn(move || loop {
-            if let Ok(_) = c_socket.recv_from(&mut buffer) {}
+            if let Ok((bytes_read, _)) = c_socket.recv_from(&mut buffer) {
+                let msg: Message = serde_json::from_str(
+                    str::from_utf8(&buffer[..bytes_read]).unwrap(),
+                )
+                .expect("Error parsing message");
+
+                match msg.msg_type {
+                    MsgType::List => {
+                        println!("Files registered with the server: ");
+                        let filenames: Vec<String> =
+                            serde_json::from_str(&msg.content)
+                                .expect("Error parsing filenames");
+                        for filename in filenames {
+                            println!("{}", filename);
+                        }
+                    }
+                    _ => {}
+                }
+            }
         });
 
-        loop {}
+        println!("main loop");
+        loop {
+            print!("> ");
+            io::stdout().flush().unwrap();
+
+            let mut msg = String::new();
+            io::stdin().read_line(&mut msg).unwrap();
+            let msg = msg.trim();
+
+            if msg.len() > 0 {
+                if msg == ":l" {
+                    self.req_list();
+                }
+            }
+        }
     }
 
     fn send_reg(&self) {
@@ -69,7 +102,17 @@ impl FspClient {
         })
         .unwrap();
 
-        println!("{:?}", msg);
+        self.socket
+            .send(msg.as_bytes())
+            .expect("Could not send to server");
+    }
+
+    fn req_list(&self) {
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::List,
+            content: String::new(),
+        })
+        .unwrap();
 
         self.socket
             .send(msg.as_bytes())

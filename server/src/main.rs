@@ -34,12 +34,11 @@ impl FspServer {
                     .expect("Error parsing message");
                     match msg.msg_type {
                         MsgType::Register => self.register(src, &msg),
-                        MsgType::List => {}
+                        MsgType::List => self.list(src),
                         MsgType::File => {}
                     }
 
                     // thread::spawn(move || {
-                    // match msg.msg_type {}
                     // println!("Handling connection from {}", src);
                     // });
                 }
@@ -47,8 +46,6 @@ impl FspServer {
                     eprintln!("Couldn't receive a datagram: {}", e);
                 }
             }
-
-            println!("{:?}", self.files);
 
             buffer.clear();
             buffer.resize(BUF_SIZE, 0);
@@ -74,7 +71,26 @@ impl FspServer {
     }
 
     fn list(&self, socket_addr: SocketAddr) {
-        //
+        println!("Sending file list to UDP {}", socket_addr);
+
+        let filenames = self
+            .files
+            .keys()
+            .map(|k| k.clone())
+            .collect::<Vec<String>>();
+
+        let msg = serde_json::to_string(&Message {
+            msg_type: MsgType::List,
+            content: serde_json::to_string(&filenames).unwrap(),
+        })
+        .unwrap();
+        println!("{}", msg);
+
+        let bytes_write = self
+            .socket
+            .send_to(&msg.as_bytes(), socket_addr)
+            .expect("Cannot sent to client");
+        println!("{} bytes written", bytes_write);
     }
 }
 
